@@ -4,91 +4,102 @@
     Input,
     Label,
     Modal,
-    P,
+    MultiSelect,
     Select,
     Spinner,
   } from "flowbite-svelte";
-  import type { RequestStatus, Student, StudentOnDepartment } from "../types";
+  import {
+    RequestStatus,
+    type Department,
+    type Role,
+    type Student,
+    type StudentOnDepartment,
+    type User,
+  } from "../types";
 
   import { createEventDispatcher, onMount } from "svelte";
+
+  import { createRole, updateRole } from "../services/roles.service";
+  import { getPermissions } from "../services/permissions.service";
+  import { getAvailablePersmissions } from "../utils/permission-parser";
+  import { CloseCircleOutline } from "flowbite-svelte-icons";
+  import { getAvailableRequestStatus } from "../utils/requestStatus-parser";
   import {
     createStudentOnDepartment,
     updateStudentOnDepartment,
   } from "../services/request.service";
+  import Request from "../pages/application/Request.svelte";
 
   const dispatch = createEventDispatcher();
-  export let open = false;
+  export let open: boolean = false;
   export let formMode: "create" | "update" = "create";
-  export let data: StudentOnDepartment = {
-    id: 0,
-    studentId: 0,
-    departmentId: 0,
-    status: "PENDING" as RequestStatus, // PENDING, APPROVED, REJECTED
-  };
+
+  export let data: Partial<StudentOnDepartment> = {};
+
+  export const student: Student[] = [];
+
+  export const department: Department[] = [];
 
   let isLoading = false;
-
-  const title = formMode ? "Crear Solicitud" : "Actualizar Solicitud";
+  const formattedRequestStatus = getAvailableRequestStatus();
 
   function close() {
     dispatch("close");
-    open = false;
     isLoading = false;
+    open = false;
   }
-  function handleSubmit() {
+  async function handleSubmit() {
     isLoading = true;
-    if (formMode === "create") {
-      console.log(data);
-
-      createStudentOnDepartment({
-        id: data.id,
-        studentId: data.studentId,
-        departmentId: data.departmentId,
-        status: data.status,
-      }).then((res) => {
-        close();
-      });
-      // create
-    } else {
-      // update
-      updateStudentOnDepartment(data.id as number, {
-        id: data.id,
-        studentId: data.studentId,
-        departmentId: data.departmentId,
-        status: data.status,
-      }).then((res) => {
-        if (res) {
-          close();
-        }
-      });
-    }
+    try {
+      if (formMode === "create") {
+        // create
+        await createStudentOnDepartment({
+          id: data.id ?? 0,
+          studentId: data.studentId ?? 0,
+          departmentId: data.departmentId ?? 0,
+          status: data.status ?? RequestStatus.PENDING,
+        } as StudentOnDepartment);
+      } else {
+        // update
+        await updateStudentOnDepartment(
+          data.id as number,
+          {
+            id: data.id ?? 0,
+            studentId: data.studentId ?? 0,
+            departmentId: data.departmentId ?? 0,
+            status: data.status ?? RequestStatus.PENDING,
+          } as StudentOnDepartment,
+        );
+      }
+    } catch (error) {}
+    close();
+    isLoading = false;
   }
 </script>
 
-<Modal
-  {title}
-  bind:open
-  outsideclose
-  on:close={close}
-  shadow
-  rounded
-  class="w-[50%]"
->
-  <form class="items-center object-center">
+<div class="container">
+  <form class="flex flex-col space-y-3 mb-4">
     <Label>Estudiante</Label>
-    <Input bind:value={data.studentId} placeholder="Estudiante" />
+    <Input bind:value={data.studentId} placeholder="Nombre" />
     <Label>Departamento</Label>
-    <Input bind:value={data.departmentId} placeholder="Departamento" />
+    <Input bind:value={data.departmentId} placeholder="Nombre" />
     <Label>Estado</Label>
-    <Input bind:value={data.status} placeholder="Estado" />
+    <Select
+      size="sm"
+      bind:value={data.status}
+      items={formattedRequestStatus}
+      placeholder="Selecciona el estado"
+    />
   </form>
-
-  <svelte:fragment slot="footer">
-    <Button color="primary" on:click={handleSubmit}>
+  <div class="flex flex-row justify-end space-x-2">
+    <Button size="sm" color="primary" on:click={handleSubmit}>
       {formMode === "create" ? "Crear" : "Actualizar"}
       {#if isLoading}
         <Spinner color="white" size="sm" />
       {/if}
     </Button>
-  </svelte:fragment>
-</Modal>
+    <Button size="sm" color="red" on:click={close}>
+      <CloseCircleOutline /> Cerrar
+    </Button>
+  </div>
+</div>
